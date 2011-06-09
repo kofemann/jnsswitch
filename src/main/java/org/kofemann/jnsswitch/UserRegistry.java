@@ -24,10 +24,15 @@ import com.sun.jna.Structure;
 import com.sun.jna.ptr.IntByReference;
 import java.util.NoSuchElementException;
 
+/**
+ * A class to access user entries on a Unix like systems.
+ * The actual lookups happen according to systems {@literal /etc/nsswith.conf}
+ * configuration.
+ */
 public class UserRegistry {
 
     /*
-     * as defined in <pwd.h>
+     * struct passwd equivalent as defined in <pwd.h>
      */
     static public class __password extends Structure {
 
@@ -41,7 +46,7 @@ public class UserRegistry {
     }
 
     /*
-     * as defined in <pwd.h>
+     * struct group equivalent as defined in <pwd.h>
      */
     static public class __group extends Structure {
 
@@ -57,13 +62,9 @@ public class UserRegistry {
     public interface LibC extends Library {
 
         __password getpwnam(String name);
-
         __password getpwuid(int id);
-
         __group getgrnam(String name);
-
         __group getgrgid(int id);
-
         int getgrouplist(String user, int gid, int[] groups, IntByReference ngroups);
     }
 
@@ -72,6 +73,12 @@ public class UserRegistry {
      */
     private final LibC _libc = (LibC) Native.loadLibrary("c", LibC.class);
 
+    /**
+     * Get numeric id of the user with a given name.
+     * @param name of the user
+     * @return uid
+     * @throws NoSuchElementException if user does not exists.
+     */
     public int uidByName(String name) throws NoSuchElementException {
         __password pwrecord = _libc.getpwnam(name);
         if (pwrecord == null) {
@@ -81,6 +88,12 @@ public class UserRegistry {
         return pwrecord.uid;
     }
 
+    /**
+     * Get numeric id of the group with a given name.
+     * @param name of the user
+     * @return gid
+     * @throws NoSuchElementException if group does not exists.
+     */
     public int gidByName(String name) throws NoSuchElementException {
         __group group = _libc.getgrnam(name);
         if (group == null) {
@@ -90,6 +103,12 @@ public class UserRegistry {
         return group.gid;
     }
 
+    /**
+     * Get a name of the user with a given id;
+     * @param id of the user
+     * @return user name
+     * @throws NoSuchElementException if user does not exists.
+     */
     public String userById(int id) throws NoSuchElementException {
         __password pwrecord = _libc.getpwuid(id);
         if (pwrecord == null) {
@@ -99,6 +118,12 @@ public class UserRegistry {
         return pwrecord.name;
     }
 
+    /**
+     * Get a name of the group with a given id;
+     * @param id of the group
+     * @return user name
+     * @throws NoSuchElementException if group does not exists.
+     */
     public String groupById(int id) throws NoSuchElementException {
         __group group = _libc.getgrgid(id);
         if (group == null) {
@@ -108,7 +133,38 @@ public class UserRegistry {
         return group.name;
     }
 
-    private int[] groupsOf(__password pwrecord) throws NoSuchElementException {
+    /**
+     * Get array of group ids to which a user belongs. 
+     * @param id of the user
+     * @return array of gids.
+     * @throws NoSuchElementException  if user does not exists.
+     */
+    public int[] groupsOf(int id) throws NoSuchElementException {
+
+        __password pwrecord = _libc.getpwuid(id);
+        if (pwrecord == null) {
+            throw new NoSuchElementException("uid " + id + " does not exists");
+        }
+        return groupsOf(pwrecord);
+    }
+
+    /**
+     * Get array of group ids to which a user belongs. 
+     * @param name of the user
+     * @return array of gids.
+     * @throws NoSuchElementException  if user does not exists.
+     */
+    public int[] groupsOf(String name) throws NoSuchElementException {
+
+        __password pwrecord = _libc.getpwnam(name);
+        if (pwrecord == null) {
+            throw new NoSuchElementException("user " + name + " does not exists");
+        }
+
+        return groupsOf(pwrecord);
+    }
+
+    private int[] groupsOf(__password pwrecord) {
 
         boolean done = false;
         int[] groups = new int[0];
@@ -123,24 +179,5 @@ public class UserRegistry {
         }
 
         return groups;
-    }
-
-    public int[] groupsOf(int id) throws NoSuchElementException {
-
-        __password pwrecord = _libc.getpwuid(id);
-        if (pwrecord == null) {
-            throw new NoSuchElementException("uid " + id + " does not exists");
-        }
-        return groupsOf(pwrecord);
-    }
-
-    public int[] groupsOf(String name) throws NoSuchElementException {
-
-        __password pwrecord = _libc.getpwnam(name);
-        if (pwrecord == null) {
-            throw new NoSuchElementException("user " + name + " does not exists");
-        }
-
-        return groupsOf(pwrecord);
     }
 }
